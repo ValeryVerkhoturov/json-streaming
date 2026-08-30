@@ -7,7 +7,7 @@ Streaming read/write for JSON arrays with constant memory usage.
 - Neither side accumulates elements internally — memory is bounded by the writer's flush buffer and the size of a single JSON element.
 - Backed by [`goccy/go-json`](https://github.com/goccy/go-json) for ~3× throughput over `encoding/json` at the same allocation profile.
 
-Comparison of standard library and library streams.
+Comparison of standard library and this library streams.
 
 ![](pics/benchmark.png)
 
