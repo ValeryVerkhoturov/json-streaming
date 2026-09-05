@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.1.6
+          args: --timeout=5m
+
+  test:
+    name: test & coverage
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: '75'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Run tests with coverage
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Show coverage per function
+        run: go tool cover -func=coverage.out
+
+      - name: Enforce coverage threshold
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%",""); print $3}')
+          echo "Total coverage: ${total}%"
+          awk -v t="$total" -v m="$COVERAGE_THRESHOLD" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% below threshold %s%%\n", t, m; exit 1 } }'
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out

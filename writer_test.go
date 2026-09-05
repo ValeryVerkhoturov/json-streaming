@@ -276,6 +276,7 @@ func TestAbortAfterCtxCancel(t *testing.T) {
 	// Demonstrates the intended usage: caller watches ctx and calls Abort
 	// when the context is done.
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var buf bytes.Buffer
 	sw, err := jsonstreaming.NewStreamWriter(&buf)
 	if err != nil {
