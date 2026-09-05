@@ -277,6 +277,91 @@ func TestMarshalStreamCancelStopsProducer(t *testing.T) {
 	}
 }
 
+func TestMarshalStreamNestedStructChannel(t *testing.T) {
+	type payload struct {
+		Status string     `json:"status"`
+		Rows   <-chan row `json:"rows"`
+		Total  int        `json:"total"`
+	}
+	type resp struct {
+		Data payload `json:"data"`
+	}
+	ch := make(chan row, 2)
+	ch <- row{ID: 1}
+	ch <- row{ID: 2}
+	close(ch)
+
+	var buf bytes.Buffer
+	if err := jsonstreaming.MarshalStream(context.Background(), &buf,
+		resp{Data: payload{Status: "ok", Rows: ch, Total: 2}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out struct {
+		Data struct {
+			Status string `json:"status"`
+			Rows   []row  `json:"rows"`
+			Total  int    `json:"total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v (payload=%q)", err, buf.String())
+	}
+	if out.Data.Status != "ok" {
+		t.Fatalf("status: %q", out.Data.Status)
+	}
+	if out.Data.Total != 2 {
+		t.Fatalf("total: %d", out.Data.Total)
+	}
+	if len(out.Data.Rows) != 2 {
+		t.Fatalf("rows len: %d", len(out.Data.Rows))
+	}
+	if out.Data.Rows[0].ID != 1 {
+		t.Fatalf("rows[0].ID: %d", out.Data.Rows[0].ID)
+	}
+	if out.Data.Rows[1].ID != 2 {
+		t.Fatalf("rows[1].ID: %d", out.Data.Rows[1].ID)
+	}
+}
+
+func TestMarshalStreamNestedPointerToStructChannel(t *testing.T) {
+	type payload struct {
+		Rows <-chan row `json:"rows"`
+	}
+	type resp struct {
+		Data *payload `json:"data"`
+		Nil  *payload `json:"nil"`
+	}
+	ch := make(chan row, 1)
+	ch <- row{ID: 42, Name: "n"}
+	close(ch)
+
+	var buf bytes.Buffer
+	if err := jsonstreaming.MarshalStream(context.Background(), &buf,
+		resp{Data: &payload{Rows: ch}, Nil: nil}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out struct {
+		Data struct {
+			Rows []row `json:"rows"`
+		} `json:"data"`
+		Nil *struct{} `json:"nil"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v (payload=%q)", err, buf.String())
+	}
+	if len(out.Data.Rows) != 1 {
+		t.Fatalf("rows len: %d", len(out.Data.Rows))
+	}
+	if out.Data.Rows[0].ID != 42 {
+		t.Fatalf("rows[0].ID: %d", out.Data.Rows[0].ID)
+	}
+	if out.Nil != nil {
+		t.Fatalf("nil field: %+v", out.Nil)
+	}
+}
+
 // TestMarshalStreamCancelsPreCall confirms a cancelled ctx is rejected at
 // entry, before any work.
 func TestMarshalStreamCancelsPreCall(t *testing.T) {
